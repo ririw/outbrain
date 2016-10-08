@@ -15,6 +15,9 @@ setup(name='outbrain',
           'numpy',
           'tensorflow',
           'keras',
+	  'boto',
+	  'boto3',
+          'ml_metrics'
       ],
       entry_points=[]
 )
