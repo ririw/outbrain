@@ -5,8 +5,10 @@
 # 
 
 import luigi
+import ml_metrics
 import luigi.parameter
 import pandas
+from sklearn import cross_validation
 
 from outbrain.data_sources import FetchS3ZipFile
 
@@ -15,21 +17,34 @@ class BeatTheBenchmark(luigi.Task):
 
     def requires(self):
         return [FetchS3ZipFile(file_name='clicks_train.csv.zip'),
-                FetchS3ZipFile(file_name='sample_submission.csv.zip')]
+                FetchS3ZipFile(file_name='clicks_test.csv.zip')]
+
+    def dataset(self):
+        train_file, eval_file = self.requires()
+        train_data = pandas.read_csv(train_file.output().path)
+        if self.test_run:
+            train_data, test_data = cross_validation.train_test_split(train_data)
+        else:
+            test_data = None
+        eval_data = pandas.read_csv(test_file.output().path)
+        return train_data, test_data, eval_data
 
     def run(self):
-        train_file, test_file = self.requires()
+        train_data, test_data, eval_data = self.dataset()
 
-        train_data = pandas.read_csv(train_file.output().path)
         click_count = train_data[train_data.clicked == 1].ad_id.value_counts()
         count_all = train_data.ad_id.value_counts()
         click_prob = (click_count / count_all).fillna(0)
 
         def srt(x):
-                ad_ids = map(int, x.split())
-                ad_ids = sorted(ad_ids, key=lambda k: click_prob.get(k, 0), reverse=True)
-                return " ".join(map(str,ad_ids))
+            ad_ids = map(int, x.split())
+            ad_ids = sorted(ad_ids, key=lambda k: click_prob.get(k, 0), reverse=True)
+            return " ".join(map(str,ad_ids))
 
-        subm = pandas.read_csv(test_file.output().path)
-        subm['ad_id'] = subm.ad_id.apply(lambda x: srt(x))
-        subm.to_csv("subm_1prob.csv", index=False)
+        working_data = test_data if self.test_run else eval_data
+        subm = working_data.groupby('display_id').ad_id.apply(list)
+        subm = subm.apply(srt)
+        if self.test_run:
+            print(subm.head())
+        else:
+            subm.to_csv("subm_1prob.csv", index=False)

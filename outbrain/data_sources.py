@@ -14,7 +14,6 @@ class FetchS3Data(luigi.Task):
         yield FetchS3ZipFile(file_name='documents_meta.csv.zip')
         yield FetchS3ZipFile(file_name='documents_topics.csv.zip')
         yield FetchS3ZipFile(file_name='events.csv.zip')
-        yield FetchS3ZipFile(file_name='page_views.csv.zip')
         yield FetchS3ZipFile(file_name='page_views_sample.csv.zip')
         yield FetchS3ZipFile(file_name='promoted_content.csv.zip')
         yield FetchS3ZipFile(file_name='sample_submission.csv.zip')
@@ -22,6 +21,10 @@ class FetchS3Data(luigi.Task):
     def run(self):
         pass
 
+
+class FetchPageViews(luigi.Task):
+    def requires(self):
+        yield FetchS3ZipFile(file_name='page_views.csv.zip')
 
 class FetchS3ZipFile(luigi.Task):
     file_name = luigi.Parameter()
