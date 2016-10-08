@@ -29,7 +29,7 @@ class FetchS3ZipFile(luigi.Task):
     def output(self):
         assert self.file_name.endswith('.zip')
         f = self.file_name[:-4]
-        outpath = os.path.join(outbrain.config.local, f)
+        outpath = os.path.join(outbrain.config.working_dir, f)
         return luigi.LocalTarget(outpath)
 
     def run(self):
