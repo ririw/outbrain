@@ -7,17 +7,17 @@ import os
 
 class FetchS3Data(luigi.Task):
     def requires(self):
-        yield FetchS3ZipFile(name='clicks_test.csv.zip')
-        yield FetchS3ZipFile(name='clicks_train.csv.zip')
-        yield FetchS3ZipFile(name='documents_categories.csv.zip')
-        yield FetchS3ZipFile(name='documents_entities.csv.zip')
-        yield FetchS3ZipFile(name='documents_meta.csv.zip')
-        yield FetchS3ZipFile(name='documents_topics.csv.zip')
-        yield FetchS3ZipFile(name='events.csv.zip')
-        yield FetchS3ZipFile(name='page_views.csv.zip')
-        yield FetchS3ZipFile(name='page_views_sample.csv.zip')
-        yield FetchS3ZipFile(name='promoted_content.csv.zip')
-        yield FetchS3ZipFile(name='sample_submission.csv.zip')
+        yield FetchS3ZipFile(file_name='clicks_test.csv.zip')
+        yield FetchS3ZipFile(file_name='clicks_train.csv.zip')
+        yield FetchS3ZipFile(file_name='documents_categories.csv.zip')
+        yield FetchS3ZipFile(file_name='documents_entities.csv.zip')
+        yield FetchS3ZipFile(file_name='documents_meta.csv.zip')
+        yield FetchS3ZipFile(file_name='documents_topics.csv.zip')
+        yield FetchS3ZipFile(file_name='events.csv.zip')
+        yield FetchS3ZipFile(file_name='page_views.csv.zip')
+        yield FetchS3ZipFile(file_name='page_views_sample.csv.zip')
+        yield FetchS3ZipFile(file_name='promoted_content.csv.zip')
+        yield FetchS3ZipFile(file_name='sample_submission.csv.zip')
 
     def run(self):
         pass
