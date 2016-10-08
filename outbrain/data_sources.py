@@ -1,7 +1,7 @@
 import luigi
 from plumbum import local
 import luigi.file
-import config
+import outbrain.config
 import os
 
 class FetchS3ZipFile(luigi.Task):
@@ -10,7 +10,7 @@ class FetchS3ZipFile(luigi.Task):
     def output(self):
         assert self.file_name.endswith('.zip')
         f = self.file_name[:-4]
-        outpath = os.path.join(config.local, f)
+        outpath = os.path.join(outbrain.config.local, f)
         return luigi.LocalTarget(outpath)
 
     def run(self):
