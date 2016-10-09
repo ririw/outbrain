@@ -8,6 +8,7 @@ import luigi
 import ml_metrics
 import luigi.parameter
 import pandas
+from tqdm import tqdm
 from sklearn import cross_validation
 
 from outbrain.data_sources import FetchS3ZipFile
@@ -43,10 +44,16 @@ class BeatTheBenchmark(luigi.Task):
             return " ".join(map(str, ad_ids))
 
         working_data = test_data if self.test_run else eval_data
-        subm = working_data.groupby('display_id').ad_id.apply(list)
-        subm = subm.apply(srt)
+        ad_groups = working_data.groupby('display_id').ad_id.apply(list)
+        ad_groups = ad_groups.apply(srt)
+        results = []
+        for ad_group in tqdm(ad_groups, total=ad_groups.shape[0]):
+            sorted_group = srt(ad_group)
+            results.append(sorted_group)
+        results = pandas.Series(results, index=ad_groups.index)
+
         if self.test_run:
-            print(subm.head())
+            print(results.head())
             clicked = test_data[test_data.clicked == 1]
             correct_results = clicked.groupby('display_id').ad_id.apply(list)
             print(ml_metrics.average_precision.mapk(correct_results.values, subm, k=12))
