@@ -16,10 +16,10 @@ def read_csv(path):
 
 
 def frame_work(frame, name):
-    frame = frame.copy()
     def sort_and_list(f):
         return list(f.sort_values('clicked', ascending=False).ad_id)
 
+    frame = frame.copy()
     logging.info('Writing file to ' + name)
     frame.to_pickle(config.working_path(name + '_clicks.pkl'))
     logging.info('grouping ' + name)

@@ -1,6 +1,6 @@
 import os
 
-working_dir='/mnt'
+working_dir = '/mnt'
 
 
 def working_path(*args):

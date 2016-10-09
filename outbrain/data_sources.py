@@ -5,6 +5,7 @@ from plumbum import local
 import outbrain.config
 import os
 
+
 class FetchS3Data(luigi.Task):
     def requires(self):
         yield FetchS3ZipFile(file_name='clicks_test.csv.zip')
@@ -44,5 +45,3 @@ class FetchS3ZipFile(luigi.Task):
         with local.cwd(outbrain.config.working_dir):
             local['unzip'](full_path)
         os.remove(full_path)
-
-
