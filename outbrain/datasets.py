@@ -5,7 +5,9 @@ from outbrain import config, data_sources
 import luigi
 import luigi.parameter
 import joblib
+import sqlite3
 import pandas
+import pandas.io.sql
 from sklearn import model_selection
 import coloredlogs
 from tqdm import tqdm
@@ -16,15 +18,38 @@ def read_csv(path):
 
 
 def frame_work(frame, name):
-    def sort_and_list(f):
-        return list(f.sort_values('clicked', ascending=False).ad_id)
-
     frame = frame.copy()
     logging.info('Writing file to ' + name)
     frame.to_pickle(config.working_path(name + '_clicks.pkl'))
+
+    con = sqlite3.connect(':memory')
+    pandas.io.sql.to_sql(frame, 'ad', con=con)
+    con.execute('create index on ad using (display_id, clicked)')
+
     logging.info('grouping ' + name)
-    frame.groupby('display_id').apply(sort_and_list)
-    frame.to_pickle(config.working_path(name + '_groups.pkl'))
+    if 'clicked' in frame:
+        result = defaultdict(list)
+        rows = con.execute('''
+            SELECT display_id,
+                   ad_id
+              FROM ad
+          ORDER BY display_id, clicked ASC
+        ''')
+        for display_id, ad_id in rows:
+            result[display_id].append(ad_id)
+        result = pandas.Series(result)
+    else:
+        result = defaultdict(list)
+        rows = con.execute('''
+            SELECT display_id,
+                   ad_id
+              FROM ad
+          ORDER BY display_id
+        ''')
+        for display_id, ad_id in rows:
+            result[display_id].append(ad_id)
+        result = pandas.Series(result)
+    result.to_pickle(config.working_path(name + '_groups.pkl'))
 
 
 class ClicksDataset(luigi.Task):
@@ -54,14 +79,14 @@ class ClicksDataset(luigi.Task):
         train = train.copy()
         test = test.copy()
 
-        joblib.Parallel(n_jobs=-1)([
+        joblib.Parallel(n_jobs=2)([
             joblib.delayed(frame_work)(all,   'all'),
             joblib.delayed(frame_work)(train, 'train'),
             joblib.delayed(frame_work)(test,  'test'),
             joblib.delayed(frame_work)(eval,  'eval')
         ])
 
-        with self.output().open() as f:
+        with self.output().open('w') as f:
             f.write('Done!')
 
     def load_train_clicks(self):
