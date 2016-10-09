@@ -7,17 +7,18 @@ setup(name='outbrain',
       author_email='richardweiss@richardweiss.org',
       packages=find_packages(),
       install_requires=[
-          'pandas',
-          'plumbum',
-          'luigi',
-          'sklearn',
-          'scipy',
-          'numpy',
-          'tensorflow',
-          'keras',
-          'boto',
-          'boto3',
-          'ml_metrics'
-      ],
-      entry_points=[]
-      )
+        'Keras',
+        'PyYAML',
+        'boto',
+        'boto3',
+        'luigi',
+        'ml',
+        'numpy',
+        'pandas',
+        'plumbum',
+        'scikit-learn',
+        'scipy',
+        'sklearn',
+        'tensorflow',
+      ]
+)

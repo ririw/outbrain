@@ -37,9 +37,9 @@ class FetchS3ZipFile(luigi.Task):
 
     def run(self):
         client = luigi.s3.S3Client()
-        path = self.output().path
+        path = self.output().path + '.zip'
         out = client.get('s3://riri-machine-learning/{}'.format(self.file_name), path)
         with local.cwd(outbrain.config.working_dir):
-            local['unzip'](self.file_name)
+            local['unzip'](os.path.join('/mnt', self.file_name))
 
 
