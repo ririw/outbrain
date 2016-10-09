@@ -12,6 +12,7 @@ from sklearn import cross_validation
 
 from outbrain.data_sources import FetchS3ZipFile
 
+
 class BeatTheBenchmark(luigi.Task):
     test_run = luigi.parameter.BoolParameter()
 
@@ -26,7 +27,7 @@ class BeatTheBenchmark(luigi.Task):
             train_data, test_data = cross_validation.train_test_split(train_data)
         else:
             test_data = None
-        eval_data = pandas.read_csv(test_file.output().path)
+        eval_data = pandas.read_csv(eval_file.output().path)
         return train_data, test_data, eval_data
 
     def run(self):
@@ -39,12 +40,15 @@ class BeatTheBenchmark(luigi.Task):
         def srt(x):
             ad_ids = map(int, x.split())
             ad_ids = sorted(ad_ids, key=lambda k: click_prob.get(k, 0), reverse=True)
-            return " ".join(map(str,ad_ids))
+            return " ".join(map(str, ad_ids))
 
         working_data = test_data if self.test_run else eval_data
         subm = working_data.groupby('display_id').ad_id.apply(list)
         subm = subm.apply(srt)
         if self.test_run:
             print(subm.head())
+            clicked = test_data[test_data.clicked == 1]
+            correct_results = clicked.groupby('display_id').ad_id.apply(list)
+            print(ml_metrics.average_precision.mapk(correct_results.values, subm, k=12))
         else:
             subm.to_csv("subm_1prob.csv", index=False)

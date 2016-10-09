@@ -1,11 +1,11 @@
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 setup(name='outbrain',
       version='1.0',
       description='Things for the outbrain comp',
       author='Richard Weiss',
       author_email='richardweiss@richardweiss.org',
-      packages=['outbrain'],
+      packages=find_packages(),
       install_requires=[
           'pandas',
           'plumbum',
@@ -15,10 +15,9 @@ setup(name='outbrain',
           'numpy',
           'tensorflow',
           'keras',
-	  'boto',
-	  'boto3',
+          'boto',
+          'boto3',
           'ml_metrics'
       ],
       entry_points=[]
-)
-
+      )
