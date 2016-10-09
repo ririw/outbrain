@@ -22,6 +22,7 @@ def frame_work(frame, name):
     logging.info('Writing file to ' + name)
     frame.to_pickle(config.working_path(name + '_clicks.pkl'))
 
+    return
     con = sqlite3.connect(':memory')
     pandas.io.sql.to_sql(frame, 'ad', con=con)
     con.execute('create index on ad using (display_id, clicked)')
@@ -75,7 +76,7 @@ class ClicksDataset(luigi.Task):
             joblib.delayed(read_csv)(eval_file.output().path),
         ])
 
-        train, test = model_selection.train_test_split(all, random_state=self.seed)
+        train, test = model_selection.train_test_split(all, random_state=self.seed, test_size=0.5)
         train = train.copy()
         test = test.copy()
 
