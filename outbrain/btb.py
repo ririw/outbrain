@@ -3,18 +3,14 @@
 # a particular click will occur, based on the overall
 # probability of a click.
 #
-from collections import defaultdict
 
+import logging
+
+import coloredlogs
 import luigi
-import ml_metrics.average_precision
 import luigi.parameter
 import pandas
 import pandas.io.sql
-import logging
-import numpy as np
-import sqlite3
-from tqdm import tqdm
-import coloredlogs
 
 from outbrain import task_utils
 from outbrain.datasets import ClicksDataset

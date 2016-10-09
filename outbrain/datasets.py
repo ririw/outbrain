@@ -1,16 +1,14 @@
 import logging
-from collections import defaultdict
 
-from outbrain import config, data_sources
+import coloredlogs
+import joblib
 import luigi
 import luigi.parameter
-import joblib
-import sqlite3
 import pandas
 import pandas.io.sql
 from sklearn import model_selection
-import coloredlogs
-from tqdm import tqdm
+
+from outbrain import config, data_sources
 
 
 def read_csv(path):
@@ -23,34 +21,6 @@ def frame_work(frame, name):
     frame.to_pickle(config.working_path(name + '_clicks.pkl'))
 
     return
-    con = sqlite3.connect(':memory')
-    pandas.io.sql.to_sql(frame, 'ad', con=con)
-    con.execute('create index on ad using (display_id, clicked)')
-
-    logging.info('grouping ' + name)
-    if 'clicked' in frame:
-        result = defaultdict(list)
-        rows = con.execute('''
-            SELECT display_id,
-                   ad_id
-              FROM ad
-          ORDER BY display_id, clicked ASC
-        ''')
-        for display_id, ad_id in rows:
-            result[display_id].append(ad_id)
-        result = pandas.Series(result)
-    else:
-        result = defaultdict(list)
-        rows = con.execute('''
-            SELECT display_id,
-                   ad_id
-              FROM ad
-          ORDER BY display_id
-        ''')
-        for display_id, ad_id in rows:
-            result[display_id].append(ad_id)
-        result = pandas.Series(result)
-    result.to_pickle(config.working_path(name + '_groups.pkl'))
 
 
 class ClicksDataset(luigi.Task):
