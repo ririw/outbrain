@@ -26,20 +26,23 @@ class FetchPageViews(luigi.Task):
     def requires(self):
         yield FetchS3ZipFile(file_name='page_views.csv.zip')
 
+
 class FetchS3ZipFile(luigi.Task):
     file_name = luigi.Parameter()
 
     def output(self):
         assert self.file_name.endswith('.zip')
         f = self.file_name[:-4]
-        outpath = os.path.join(outbrain.config.working_dir, f)
+        outpath = outbrain.config.working_path(f)
         return luigi.LocalTarget(outpath)
 
     def run(self):
         client = luigi.s3.S3Client()
         path = self.output().path + '.zip'
-        out = client.get('s3://riri-machine-learning/{}'.format(self.file_name), path)
+        client.get('s3://riri-machine-learning/{}'.format(self.file_name), path)
+        full_path = os.path.join('/mnt', self.file_name)
         with local.cwd(outbrain.config.working_dir):
-            local['unzip'](os.path.join('/mnt', self.file_name))
+            local['unzip'](full_path)
+        os.remove(full_path)
 
 

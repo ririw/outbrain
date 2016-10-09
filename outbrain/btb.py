@@ -2,60 +2,60 @@
 # Basically, just calculate the probability that 
 # a particular click will occur, based on the overall
 # probability of a click.
-# 
+#
+from collections import defaultdict
 
 import luigi
 import ml_metrics
 import luigi.parameter
+import joblib
 import pandas
+import logging
+import numpy as np
 from tqdm import tqdm
-from sklearn import cross_validation
+import coloredlogs
 
 from outbrain.data_sources import FetchS3ZipFile
+from outbrain.datasets import ClicksDataset
 
 
 class BeatTheBenchmark(luigi.Task):
     test_run = luigi.parameter.BoolParameter()
 
     def requires(self):
-        return [FetchS3ZipFile(file_name='clicks_train.csv.zip'),
-                FetchS3ZipFile(file_name='clicks_test.csv.zip')]
+        return ClicksDataset()
 
     def dataset(self):
-        train_file, eval_file = self.requires()
-        train_data = pandas.read_csv(train_file.output().path)
+        data_task = self.requires()
         if self.test_run:
-            train_data, test_data = cross_validation.train_test_split(train_data)
+            return data_task.load_train_clicks()[0], data_task.load_train_groups()[1]
         else:
-            test_data = None
-        eval_data = pandas.read_csv(eval_file.output().path)
-        return train_data, test_data, eval_data
+            return data_task.load_eval_clicks()[0], data_task.load_eval_groups()[1]
 
     def run(self):
-        train_data, test_data, eval_data = self.dataset()
+        coloredlogs.install(level=logging.INFO)
+        logging.info('Gathering datasets')
+        train_data, test_data = self.dataset()
 
+        logging.info('Computing stats')
         click_count = train_data[train_data.clicked == 1].ad_id.value_counts()
         count_all = train_data.ad_id.value_counts()
         click_prob = (click_count / count_all).fillna(0)
 
-        def srt(x):
-            ad_ids = map(int, x.split())
+        def srt(ad_ids):
+            # Shuffle the ad IDs
+            ad_ids = ad_ids[np.random.permutation(len(ad_ids))]
             ad_ids = sorted(ad_ids, key=lambda k: click_prob.get(k, 0), reverse=True)
-            return " ".join(map(str, ad_ids))
+            return ad_ids
 
-        working_data = test_data if self.test_run else eval_data
-        ad_groups = working_data.groupby('display_id').ad_id.apply(list)
-        ad_groups = ad_groups.apply(srt)
+        logging.info('Computed stats, building groups')
+
         results = []
-        for ad_group in tqdm(ad_groups, total=ad_groups.shape[0]):
-            sorted_group = srt(ad_group)
-            results.append(sorted_group)
-        results = pandas.Series(results, index=ad_groups.index)
+        for l in tqdm(test_data, total=test_data.shape[0]):
+            results.append(srt(l))
+        results = pandas.Series(results, index=test_data.index)
 
         if self.test_run:
-            print(results.head())
-            clicked = test_data[test_data.clicked == 1]
-            correct_results = clicked.groupby('display_id').ad_id.apply(list)
-            print(ml_metrics.average_precision.mapk(correct_results.values, subm, k=12))
+            print(ml_metrics.average_precision.mapk(test_data.values, results, k=12))
         else:
-            subm.to_csv("subm_1prob.csv", index=False)
+            results.to_csv("subm_1prob.csv", index=False)

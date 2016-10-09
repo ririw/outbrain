@@ -1,15 +1,19 @@
-sudo locale-gen en_AU.UTF-8
-sudo apt-get update
-sudo apt-get install -y python3-pip python3-numpy cython3 awscli htop git unzip \
-    python3-scipy mosh libblas-dev liblapack-dev libatlas-base-dev gfortran
+export HOST=54.66.6.194
+ssh ubuntu@$HOST sudo locale-gen en_AU.UTF-8
+ssh ubuntu@$HOST sudo apt-get update
+ssh ubuntu@$HOST sudo apt-get install -y python3-pip awscli htop git unzip mosh libblas-dev liblapack-dev libatlas-base-dev gfortran
 
 wget https://repo.continuum.io/archive/Anaconda3-4.2.0-Linux-x86_64.sh
 sudo bash Anaconda3-4.2.0-Linux-x86_64.sh
 conda create --name outbrain
 source activate outbrain
 
-pip install --upgrade plumbum boto boto3 luigi ml-metrics
-conda install ipython pandas scipy scikit-learn numpy
+ssh ubuntu@$HOST NPY_NUM_BUILD_JOBS=16 sudo pip3 install numpy scipy cython
+ssh ubuntu@$HOST sudo pip3 install ipython pandas scikit-learn jupyter
+ssh ubuntu@$HOST sudo pip3 install plumbum boto boto3 luigi ml-metrics tqdm coloredlogs joblib
+
+sudo mkfs.ext4 /dev/xvdb
+
 
 git clone https://github.com/ririw/outbrain.git
 rsync -r ../outbrain ubuntu@$HOST:~
