@@ -11,6 +11,7 @@ import luigi
 import luigi.parameter
 import pandas
 import pandas.io.sql
+from tqdm import tqdm
 
 from outbrain import task_utils
 from outbrain.datasets import ClicksDataset
@@ -51,6 +52,6 @@ class BeatTheBenchmark(luigi.Task):
             results = task_utils.retrieve_from_frame(merged_data)
             with open("subm_1prob.csv", 'w') as f:
                 f.write('display_id,ad_id\n')
-                for (display_id, ads) in results:
+                for (display_id, ads) in tqdm(results.items(), total=len(results), desc='writing results'):
                     ads_s = ' '.join([str(ad) for ad in ads])
                     f.write('{},{}\n'.format(display_id, ads_s))

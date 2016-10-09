@@ -1,7 +1,7 @@
 export HOST=54.66.6.194
 ssh ubuntu@$HOST sudo locale-gen en_AU.UTF-8
 ssh ubuntu@$HOST sudo apt-get update
-ssh ubuntu@$HOST sudo apt-get install -y python3-pip awscli htop git unzip mosh libblas-dev liblapack-dev libatlas-base-dev gfortran
+ssh ubuntu@$HOST sudo apt-get install -y python3-pip awscli htop git unzip mosh libblas-dev liblapack-dev libatlas-base-dev gfortran zip
 
 wget https://repo.continuum.io/archive/Anaconda3-4.2.0-Linux-x86_64.sh
 sudo bash Anaconda3-4.2.0-Linux-x86_64.sh
