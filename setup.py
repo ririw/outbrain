@@ -1,4 +1,13 @@
-from setuptools import setup, find_packages
+import numpy
+from Cython.Build import cythonize
+from setuptools import setup, find_packages, Extension
+
+extensions = [
+    Extension(
+        "outbrain/libffm_helpers",
+        ["outbrain/libffm_helpers.pyx"],
+        include_dirs=[numpy.get_include()])
+    ]
 
 setup(name='outbrain',
       version='1.0',
@@ -20,6 +29,12 @@ setup(name='outbrain',
           'coloredlogs',
           'scipy',
           'sklearn',
-          'tensorflow', 'joblib', 'tqdm',
-      ]
+          #'tensorflow',
+          'joblib',
+          'tqdm',
+      ],
+      include_package_data=True,
+      ext_modules=cythonize(extensions),
       )
+
+

@@ -13,10 +13,12 @@ ssh ubuntu@$HOST sudo pip3 install ipython pandas scikit-learn jupyter
 ssh ubuntu@$HOST sudo pip3 install plumbum boto boto3 luigi ml-metrics tqdm coloredlogs joblib
 
 sudo mkfs.ext4 /dev/xvdb
-
+sudo mount /dev/xvdb /mnt
+sudo chown ubuntu /mnt
 
 git clone https://github.com/ririw/outbrain.git
 rsync -r ../outbrain ubuntu@$HOST:~
 
 
-PYTHONPATH=. luigi --local-scheduler --workers=3 --module outbrain.btb BeatTheBenchmark --test-run
+PYTHONPATH=. luigi --local-scheduler --workers=3 --module outbrain.libffm LibFFMRun --test-run
+PYTHONPATH=. luigi --local-scheduler --workers=3 --module outbrain.btb BeatTheBenchmark

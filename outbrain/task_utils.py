@@ -3,6 +3,7 @@ from collections import defaultdict
 
 import ml_metrics.average_precision
 import pandas.io.sql
+from sklearn import metrics
 import sqlite3
 
 from tqdm import tqdm
@@ -32,6 +33,10 @@ def test_with_frame(merged_data):
     return ml_metrics.average_precision.mapk(pred, results, k=2)
 
 
+def test_accuracy_with_frame(merged_database):
+    return metrics.accuracy_score(merged_database.clicked, merged_database.pred)
+
+
 def retrieve_from_frame(merged_data):
     con = sqlite3.connect(':memory:')
     logging.info('Writing to database')
@@ -46,3 +51,10 @@ def retrieve_from_frame(merged_data):
 
     con.close()
     return results
+
+
+def write_results(results, handle):
+    handle.write('display_id,ad_id\n')
+    for (display_id, ads) in tqdm(results.items(), total=len(results), desc='writing results'):
+        ads_s = ' '.join([str(ad) for ad in ads])
+        handle.write('{},{}\n'.format(display_id, ads_s))
