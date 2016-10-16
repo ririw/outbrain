@@ -18,6 +18,7 @@ setup(name='outbrain',
       install_requires=[
           'Keras',
           'PyYAML',
+          'nose',
           'boto',
           'boto3',
           'luigi',

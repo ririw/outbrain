@@ -19,15 +19,17 @@ import numpy as np
 import pandas
 import shutil
 from plumbum import local, FG
+from sklearn import linear_model
 
 from outbrain import config
+from outbrain import task_utils
 from outbrain.data_sources import FetchS3ZipFile
 from outbrain.datasets import ClicksDataset
 from outbrain.libffm_helpers import write_ffm_matrix, _file_version, write_vw_matrix
 
 from outbrain.task_utils import test_accuracy_with_frame, retrieve_from_frame, write_results
 
-assert _file_version == 9
+assert _file_version == 12
 
 
 class ExternalVWLikeClassifier(luigi.Task):
@@ -39,6 +41,12 @@ class ExternalVWLikeClassifier(luigi.Task):
 
     def requires(self):
         return [ClicksDataset(), FetchS3ZipFile(file_name='events.csv.zip')]
+
+    def output(self):
+            if self.test_run:
+                return []
+            else:
+                return luigi.s3.S3Target('s3://riri-machine-learning/outbrain-results/{}.csv'.format(type(self)))
 
     def run(self):
         coloredlogs.install(level=logging.INFO)
@@ -71,7 +79,7 @@ class ExternalVWLikeClassifier(luigi.Task):
         if 'clicked' not in test_click_contexts:
             test_click_contexts['clicked'] = 0
         train_data = train_click_contexts[['ad_id', 'document_id', 'platform', 'clicked']].copy()
-        test_data = test_click_contexts[['ad_id', 'document_id', 'platform', 'clicked']].copy()
+        test_data = test_click_contexts[['display_id', 'ad_id', 'document_id', 'platform', 'clicked']].copy()
         del train_click_contexts, test_click_contexts, train_clicks, test_clicks, events
 
         field_cats = {}
@@ -81,10 +89,10 @@ class ExternalVWLikeClassifier(luigi.Task):
             field_cats[field_name] = train_data[field_name].cat.categories
             test_data[field_name] = test_data[field_name].astype('category', categories=field_cats[field_name])
 
-            logging.warning('field %s min: %d max: %d',
-                            field_name, field_cats[field_name].min(), field_cats[field_name].max())
             train_data[field_name] = (train_data[field_name].cat.codes + 1).astype(int)
             test_data[field_name] = (test_data[field_name].cat.codes + 1).astype(int)
+            logging.warning('field %s min: %d max: %d',
+                            field_name, train_data[field_name].min(), train_data[field_name].max())
             test_data.ix[test_data[field_name] == 1, field_name] = 0
 
         for col in train_data:
@@ -96,15 +104,27 @@ class ExternalVWLikeClassifier(luigi.Task):
         del train_data
 
         if self.test_run:
-            predictions = predictions.to_frame('pred') > 0.5
+            predictions = predictions.to_frame('prob')
             predictions['clicked'] = test_data.clicked
-            logging.warning('Prediction accucracy: %f', test_accuracy_with_frame(predictions))
+            predictions['display_id'] = test_data.display_id
+            predictions['ad_id'] = test_data.ad_id
+
+            # We cheat here and use the classifier on test data,
+            # but I figure our bias in the choice of estimator is
+            # so strong it won't matter.
+            predictor = linear_model.LogisticRegression()
+            predictor.fit(predictions[['prob']].as_matrix(), predictions[['clicked']])
+            predictions['pred'] = predictor.predict(predictions[['prob']].as_matrix())
+            print(predictions.dtypes)
+            logging.warning('Prediction accucracy: %f', task_utils.test_with_frame(predictions))
+            logging.warning('Accuracy Score: {}'.format(task_utils.test_accuracy_with_frame(predictions)))
+
         else:
             predictions = predictions.to_frame('prob')
             predictions['display_id'] = test_data.display_id
             predictions['ad_id'] = test_data.ad_id
             results = retrieve_from_frame(predictions)
-            with open('./results.csv', 'w') as f:
+            with self.output().open('w') as f:
                 write_results(results, f)
 
 
@@ -124,6 +144,7 @@ class VWClassifier(ExternalVWLikeClassifier):
         os.makedirs(config.working_path('vw_working'), exist_ok=True)
         train_file = tempfile.mktemp(dir=config.working_path('vw_working'), prefix='train_data.')
         model_file = tempfile.mktemp(dir=config.working_path('vw_working'), prefix='model.')
+        human_model_file = tempfile.mktemp(dir=config.working_path('vw_working'), prefix='human_model.')
         test_file = tempfile.mktemp(dir=config.working_path('vw_working'), prefix='test_data.')
         prediction_file = tempfile.mktemp(dir=config.working_path('vw_working'), prefix='prediction.')
         cache_file = tempfile.mktemp(dir=config.working_path('vw_working'), prefix='cache.')
@@ -133,9 +154,18 @@ class VWClassifier(ExternalVWLikeClassifier):
         self.write_vw_rows(test_data, test_file)
 
         logging.info('Training')
-        local['vw']['--hash', 'all', '--cache_file', cache_file, '--passes', 5, '-f', model_file, train_file] & FG
+        local['vw']['--hash', 'all',
+                    '-b', '24',
+                    '--rank', '16', # Build a matrix factorization model for
+                    '-q', '::', # Quadratic interaction terms for all pairs, in order to learn the matrix factorization
+                    '--cache_file', cache_file,
+                    '--passes', 1,
+                    '-f', model_file, train_file] & FG
         logging.info('Classifying')
-        local['vw']['-i', model_file, '-p', prediction_file, test_file] & FG
+        local['vw']['-i', model_file,
+                    '-p', prediction_file,
+                    '-t', # Test mode
+                    test_file] & FG
         logging.warning('Wrote predictions to ' + prediction_file)
         logging.info('Reading predictions')
         predictions = pandas.read_csv(prediction_file, names=['prob'])
@@ -167,7 +197,12 @@ class LibFFMClassifier(ExternalVWLikeClassifier):
         with local.cwd("libffm"):
             local['make']('-B')
         logging.info('Training')
-        local['./libffm/ffm-train']['-t', '50', '-s', str(multiprocessing.cpu_count()), train_file, model_file] & FG
+        local['./libffm/ffm-train'][
+            '-t', '100',  # Number of passes
+            '-k', '16',  # Latent factors
+            '-r', '0.5', # Learning rate
+            '-s', str(multiprocessing.cpu_count()),  # Number of threads
+            train_file, model_file] & FG
         logging.info('Classifying')
         local['./libffm/ffm-predict'][test_file, model_file, prediction_file] & FG
         logging.warning('Wrote predictions to ' + prediction_file)
