@@ -9,12 +9,15 @@ import logging
 import coloredlogs
 import luigi
 import luigi.parameter
+import luigi.s3
 import pandas
 import pandas.io.sql
+from sklearn import linear_model
 from tqdm import tqdm
 
 from outbrain import task_utils
 from outbrain.datasets import ClicksDataset
+from outbrain.task_utils import write_results
 
 
 class BeatTheBenchmark(luigi.Task):
@@ -30,6 +33,12 @@ class BeatTheBenchmark(luigi.Task):
         else:
             return data_task.load_eval_clicks()
 
+    def output(self):
+        if self.test_run:
+            return []
+        else:
+            return luigi.s3.S3Target('s3://riri-machine-learning/outbrain-results/beat-the-benchmark.csv')
+
     def run(self):
         coloredlogs.install(level=logging.INFO)
         logging.info('Gathering datasets')
@@ -44,14 +53,20 @@ class BeatTheBenchmark(luigi.Task):
         logging.info('Computed stats, building groups')
 
         merged_data = pandas.merge(test_data, click_prob, on='ad_id', how='left').fillna(0)
+        del test_data, click_prob, train_data, click_count
 
         if self.test_run:
             score = task_utils.test_with_frame(merged_data)
-            logging.warning('Score: {}'.format(score))
+            logging.warning('Average Prediction Score: {}'.format(score))
+            predictor = linear_model.LogisticRegression()
+            # We cheat here and use the classifier on test data,
+            # but I figure our bias in the choice of estimator is
+            # so strong it won't matter.
+            predictor.fit(merged_data[['prob']].as_matrix(), merged_data[['clicked']])
+            merged_data['pred'] = predictor.predict(merged_data[['prob']].as_matrix())
+            score = task_utils.test_accuracy_with_frame(merged_data)
+            logging.warning('Accuracy Score: {}'.format(score))
         else:
             results = task_utils.retrieve_from_frame(merged_data)
-            with open("subm_1prob.csv", 'w') as f:
-                f.write('display_id,ad_id\n')
-                for (display_id, ads) in tqdm(results.items(), total=len(results), desc='writing results'):
-                    ads_s = ' '.join([str(ad) for ad in ads])
-                    f.write('{},{}\n'.format(display_id, ads_s))
+            with self.output().open('w') as f:
+                write_results(results, f)

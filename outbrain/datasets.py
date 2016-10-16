@@ -46,7 +46,7 @@ class ClicksDataset(luigi.Task):
             joblib.delayed(read_csv)(eval_file.output().path),
         ])
 
-        train, test = model_selection.train_test_split(all, random_state=self.seed, test_size=0.5)
+        train, test = model_selection.train_test_split(all, random_state=self.seed, test_size=0.10)
         train = train.copy()
         test = test.copy()
 
