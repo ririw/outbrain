@@ -34,19 +34,23 @@ def write_vw_matrix(str target_file,
                     np.ndarray[np.int_t, ndim=1] clicked,
                     np.ndarray[np.int_t, ndim=1] ad_id,
                     np.ndarray[np.int_t, ndim=1] document_id,
-                    np.ndarray[np.int_t, ndim=1] platform):
-    cdef int c, a, d, p, i
+                    np.ndarray[np.int_t, ndim=1] platform,
+                    np.ndarray[np.int_t, ndim=1] user_id,
+                    ):
+    cdef int c, a, d, p, i, u
     f = libc.stdio.fopen(target_file.encode('ascii'), 'w')
 
     nose.tools.assert_equal(clicked.shape[0], ad_id.shape[0])
     nose.tools.assert_equal(clicked.shape[0], document_id.shape[0])
+    nose.tools.assert_equal(clicked.shape[0], user_id.shape[0])
     nose.tools.assert_equal(clicked.shape[0], platform.shape[0])
     for i in range(0, clicked.shape[0]):
-        c = clicked[i]
+        c = 1 if  clicked[i] else -1
         a = ad_id[i]
         d = document_id[i]
+        u = user_id[i]
         p = platform[i]
-        libc.stdio.fprintf(f, "%d |ad ad%d |doc doc%d |plat plat%d\n", c,a,d,p)
+        libc.stdio.fprintf(f, "%d |ad ad%d |doc doc%d |plat plat%d |user user%d\n", c,a,d,p,u)
     libc.stdio.fclose(f)
 
-_file_version = 12
+_file_version = 15

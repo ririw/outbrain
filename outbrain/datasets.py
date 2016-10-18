@@ -1,12 +1,15 @@
 import logging
+import os
 
 import coloredlogs
+import numpy as np
 import joblib
 import luigi
 import luigi.parameter
 import pandas
 import pandas.io.sql
 from sklearn import model_selection
+from sklearn.datasets.base import Bunch
 
 from outbrain import config, data_sources
 
@@ -79,3 +82,94 @@ class ClicksDataset(luigi.Task):
         assert self.complete()
         return (pandas.read_pickle(config.working_path("all_groups.pkl")),
                 pandas.read_pickle(config.working_path("eval_groups.pkl")))
+
+
+class EventClicksDataset(luigi.Task):
+    small = luigi.parameter.BoolParameter()
+    test_run = luigi.parameter.BoolParameter()
+
+    def requires(self):
+        return [ClicksDataset(),
+                data_sources.FetchS3ZipFile(file_name='events.csv.zip')]
+
+    def directory(self):
+        return config.working_path('event_clicks/{}/{}'.format(
+            'small' if self.small else 'normal',
+            'test' if self.test_run else 'full'
+        ))
+
+    def output(self):
+        return luigi.LocalTarget(os.path.join(self.directory(), 'done'))
+
+    def run(self):
+        coloredlogs.install(level=logging.INFO)
+        logging.info('Gathering data')
+        clicks_data, events_file = self.requires()
+        logging.info('Gathering events')
+        events = pandas.read_csv(events_file.output().path, dtype={
+            'display_id': np.int64,
+            'uuid': object,
+            'document_id': np.int64,
+            'timestamp': np.int64,
+            'platform': object,
+            'geo_location': object,
+        })
+        train_test_data = DatasetViews.event_clicks(clicks_data, events, self.test_run, self.small)
+        self.output().makedirs()
+        train_test_data.train_data.to_pickle(os.path.join(self.directory(), 'train_data.pkl'))
+        train_test_data.test_data.to_pickle(os.path.join(self.directory(), 'test_data.pkl'))
+
+        with self.output().open('w') as f:
+            pass
+
+    def load(self):
+        assert self.complete()
+        test = pandas.read_pickle(os.path.join(self.directory(), 'test_data.pkl'))
+        train = pandas.read_pickle(os.path.join(self.directory(), 'train_data.pkl'))
+        return train, test
+
+class DatasetViews:
+    @staticmethod
+    def event_clicks(clicks_data, events, test_run, small=False):
+        if test_run:
+            train_clicks, test_clicks = clicks_data.load_train_clicks()
+            test_clicks = test_clicks
+            train_clicks = train_clicks
+        else:
+            train_clicks, test_clicks = clicks_data.load_eval_clicks()
+
+        if small:
+            train_clicks = train_clicks.head(10000)
+            test_clicks = test_clicks.head(10000)
+
+        logging.info('Building contexts')
+        train_click_contexts = pandas.merge(train_clicks, events, on='display_id')
+        test_click_contexts = pandas.merge(test_clicks, events, on='display_id')
+        if 'clicked' not in test_click_contexts:
+            test_click_contexts['clicked'] = 0
+        train_data = train_click_contexts[['ad_id', 'document_id', 'platform', 'uuid', 'clicked']].copy()
+        test_data = test_click_contexts[['display_id', 'ad_id', 'document_id', 'platform', 'uuid', 'clicked']].copy()
+        del train_click_contexts, test_click_contexts, train_clicks, test_clicks, events
+
+        field_cats = {}
+
+        def convert_field_to_categories(field_name):
+            train_data[field_name] = train_data[field_name].astype('category')
+            field_cats[field_name] = train_data[field_name].cat.categories
+            test_data[field_name] = test_data[field_name].astype('category', categories=field_cats[field_name])
+
+            train_data[field_name] = (train_data[field_name].cat.codes + 1).astype(int)
+            test_data[field_name] = (test_data[field_name].cat.codes + 1).astype(int)
+            logging.warning('field %s min: %d max: %d',
+                            field_name, train_data[field_name].min(), train_data[field_name].max())
+            test_data.ix[test_data[field_name] == 1, field_name] = 0
+
+        for col in train_data:
+            if col == 'clicked':
+                continue
+            convert_field_to_categories(col)
+
+        return Bunch(
+            test_data=test_data,
+            train_data=train_data
+        )

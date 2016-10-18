@@ -37,6 +37,10 @@ def test_accuracy_with_frame(merged_database):
     return metrics.accuracy_score(merged_database.clicked, merged_database.pred)
 
 
+def test_logloss_with_frame(merged_database):
+    return metrics.log_loss(merged_database.clicked, merged_database.prob)
+
+
 def retrieve_from_frame(merged_data):
     con = sqlite3.connect(':memory:')
     logging.info('Writing to database')
@@ -58,3 +62,5 @@ def write_results(results, handle):
     for (display_id, ads) in tqdm(results.items(), total=len(results), desc='writing results'):
         ads_s = ' '.join([str(ad) for ad in ads])
         handle.write('{},{}\n'.format(display_id, ads_s))
+
+
