@@ -26,7 +26,7 @@ class KerasClassifier(luigi.Task):
             if self.test_run:
                 return []
             else:
-                return luigi.s3.S3Target('s3://riri-machine-learning/outbrain-results/{}.csv'.format(type(self)))
+                return luigi.s3.S3Target('s3://riri-machine-learning/outbrain-results/{}.csv'.format(type(self).__name__))
 
     def model(self):
         pass
@@ -54,7 +54,7 @@ class KerasClassifier(luigi.Task):
         max_ads = train_data.ad_id.max()
 
         settings = Bunch(
-            embedding_size=16
+            embedding_size=4
         )
 
         def build_embedding(largest_ix):
@@ -87,32 +87,34 @@ class KerasClassifier(luigi.Task):
         nn = keras.layers.Dense(64, activation='relu')(nn)
         nn = keras.layers.Dropout(0.5)(nn)
 
-        nn = keras.layers.Dense(64, activation='sigmoid')(nn)
+        nn = keras.layers.Dense(1, activation='sigmoid')(nn)
 
         Xs = [train_data.document_id.values, train_data.uuid.values, train_data.ad_id.values]
         test_Xs = [test_data.document_id.values, test_data.uuid.values, test_data.ad_id.values]
-        ys = train_data.clicked
-        test_ys = test_data.clicked
+        ys = train_data.clicked.values[:, None]
+        test_ys = test_data.clicked.values[:, None]
         sample_xs = [x[:20] for x in Xs]
 
         model = keras.models.Model([k_doc_input, k_users_input, k_ad_input], nn)
         # Check for a crash or size mismatch before the compile.
-        nose.tools.assert_equals(model.predict(sample_xs).shape, (20,))
+        nose.tools.assert_equals(model.predict(sample_xs).shape, (20, 1))
         model.compile('adam', 'binary_crossentropy')
 
-        model.fit(Xs, ys, validation_data=(test_Xs, test_ys), nb_epoch=1, batch_size=512)
+        model.fit(Xs, ys, validation_data=(test_Xs, test_ys), nb_epoch=20, batch_size=512)
 
         if self.test_run:
-            predictions = pandas.Series(model.predict(test_Xs), index=test_data.index).to_frame('prob')
+            predictions = pandas.Series(model.predict(test_Xs).flatten(), index=test_data.index).to_frame('prob')
             predictions['clicked'] = test_data.clicked
             predictor = linear_model.LogisticRegression()
             predictor.fit(predictions[['prob']].as_matrix(), predictions[['clicked']])
             predictions['pred'] = predictor.predict(predictions[['prob']].as_matrix())
+            predictions['display_id'] = test_data.display_id
+            predictions['ad_id'] = test_data.ad_id
             print(predictions.dtypes)
             logging.warning('Prediction accucracy: %f', task_utils.test_with_frame(predictions))
             logging.warning('Accuracy Score: {}'.format(task_utils.test_accuracy_with_frame(predictions)))
         else:
-            predictions = pandas.Series(model.predict(test_Xs), index=test_data.index).to_frame('prob')
+            predictions = pandas.Series(model.predict(test_Xs).flatten(), index=test_data.index).to_frame('prob')
             predictions['display_id'] = test_data.display_id
             predictions['ad_id'] = test_data.ad_id
             results = task_utils.retrieve_from_frame(predictions)

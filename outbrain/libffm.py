@@ -43,7 +43,7 @@ class ExternalVWLikeClassifier(luigi.Task):
             if self.test_run:
                 return []
             else:
-                return luigi.s3.S3Target('s3://riri-machine-learning/outbrain-results/{}.csv'.format(type(self)))
+                return luigi.s3.S3Target('s3://riri-machine-learning/outbrain-results/{}.csv'.format(type(self).__name__))
 
     def run(self):
         coloredlogs.install(level=logging.INFO)
@@ -106,7 +106,7 @@ class VWClassifier(ExternalVWLikeClassifier):
         local['vw'][
             '-k --cache_file {} -b 24 '
             '-q ua -q ud -q da --rank 8 '
-            '--l1 0.001 -l 0.01 '
+            '--l2 0.005 -l 0.01 '
             '--passes 100 '
             '--decay_learning_rate 0.97 --power_t 0 '
             '--loss_function logistic --link logistic -f {} {}'.format(cache_file, model_file, train_file).split(' ')
