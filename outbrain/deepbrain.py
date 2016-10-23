@@ -45,7 +45,7 @@ class KerasClassifier(luigi.Task):
             'geo_location': object,
         })
 
-        train_test_data = datasets.DatasetViews.event_clicks(clicks_data, events, self.test_run, self.small)
+        train_test_data = datasets.EventClicks.event_clicks(clicks_data, events, self.test_run, self.small)
         train_data = train_test_data.train_data
         test_data = train_test_data.test_data
 
@@ -69,33 +69,29 @@ class KerasClassifier(luigi.Task):
         # Document embedding
 
         k_doc_input, k_doc_embedding = build_embedding(max_documents)
-        k_users_input, k_users_embedding = build_embedding(max_users)
         k_ad_input, k_ad_embedding = build_embedding(max_ads)
 
-        merged_embeddings = keras.layers.merge([k_doc_embedding, k_users_embedding, k_ad_embedding],
+        merged_embeddings = keras.layers.merge([k_doc_embedding, k_ad_embedding],
                                                mode='concat')
 
-        nn = keras.layers.Dense(512, activation='relu')(merged_embeddings)
-        nn = keras.layers.Dropout(0.5)(nn)
-
-        nn = keras.layers.Dense(256, activation='relu')(nn)
-        nn = keras.layers.Dropout(0.5)(nn)
-
-        nn = keras.layers.Dense(128, activation='relu')(nn)
+        nn = keras.layers.Dense(128, activation='relu')(merged_embeddings)
         nn = keras.layers.Dropout(0.5)(nn)
 
         nn = keras.layers.Dense(64, activation='relu')(nn)
         nn = keras.layers.Dropout(0.5)(nn)
 
+        nn = keras.layers.Dense(32, activation='relu')(nn)
+        nn = keras.layers.Dropout(0.5)(nn)
+
         nn = keras.layers.Dense(1, activation='sigmoid')(nn)
 
-        Xs = [train_data.document_id.values, train_data.uuid.values, train_data.ad_id.values]
-        test_Xs = [test_data.document_id.values, test_data.uuid.values, test_data.ad_id.values]
+        Xs = [train_data.document_id.values, train_data.ad_id.values]
+        test_Xs = [test_data.document_id.values, test_data.ad_id.values]
         ys = train_data.clicked.values[:, None]
         test_ys = test_data.clicked.values[:, None]
         sample_xs = [x[:20] for x in Xs]
 
-        model = keras.models.Model([k_doc_input, k_users_input, k_ad_input], nn)
+        model = keras.models.Model([k_doc_input, k_ad_input], nn)
         # Check for a crash or size mismatch before the compile.
         nose.tools.assert_equals(model.predict(sample_xs).shape, (20, 1))
         model.compile('adam', 'binary_crossentropy')
@@ -110,7 +106,6 @@ class KerasClassifier(luigi.Task):
             predictions['pred'] = predictor.predict(predictions[['prob']].as_matrix())
             predictions['display_id'] = test_data.display_id
             predictions['ad_id'] = test_data.ad_id
-            print(predictions.dtypes)
             logging.warning('Prediction accucracy: %f', task_utils.test_with_frame(predictions))
             logging.warning('Accuracy Score: {}'.format(task_utils.test_accuracy_with_frame(predictions)))
         else:

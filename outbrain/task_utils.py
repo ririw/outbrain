@@ -1,4 +1,5 @@
 import logging
+import operator
 from collections import defaultdict
 
 import ml_metrics.average_precision
@@ -31,6 +32,30 @@ def test_with_frame(merged_data):
     results = [results[k] for k in true_results.keys()]
 
     return ml_metrics.average_precision.mapk(pred, results, k=2)
+
+
+def itemgetter_default(field, default):
+    def fn(ls):
+        if isinstance(ls, float):
+            return default
+        try:
+            return ls[field]
+        except IndexError:
+            return default
+    return fn
+
+
+def geo_expander(geo_series):
+    heirarchy = geo_series.str.split('>')
+    country = heirarchy.apply(itemgetter_default(0, 'NIL'))
+    state = heirarchy.apply(itemgetter_default(1, 'NIL'))
+    zone = heirarchy.apply(itemgetter_default(2, 'NIL'))
+
+    return pandas.DataFrame({
+        'country': country,
+        'state': state,
+        'zone': zone
+    })
 
 
 def test_accuracy_with_frame(merged_database):

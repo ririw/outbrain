@@ -12,6 +12,7 @@ from sklearn import model_selection
 from sklearn.datasets.base import Bunch
 
 from outbrain import config, data_sources
+from outbrain import task_utils
 
 
 def read_csv(path):
@@ -54,10 +55,10 @@ class ClicksDataset(luigi.Task):
         test = test.copy()
 
         joblib.Parallel(n_jobs=2)([
-            joblib.delayed(frame_work)(all,   'all'),
+            joblib.delayed(frame_work)(all, 'all'),
             joblib.delayed(frame_work)(train, 'train'),
-            joblib.delayed(frame_work)(test,  'test'),
-            joblib.delayed(frame_work)(eval,  'eval')
+            joblib.delayed(frame_work)(test, 'test'),
+            joblib.delayed(frame_work)(eval, 'eval')
         ])
 
         with self.output().open('w') as f:
@@ -114,7 +115,7 @@ class EventClicksDataset(luigi.Task):
             'platform': object,
             'geo_location': object,
         })
-        train_test_data = DatasetViews.event_clicks(clicks_data, events, self.test_run, self.small)
+        train_test_data = self.event_clicks(clicks_data, events, self.test_run, self.small)
         self.output().makedirs()
         train_test_data.train_data.to_pickle(os.path.join(self.directory(), 'train_data.pkl'))
         train_test_data.test_data.to_pickle(os.path.join(self.directory(), 'test_data.pkl'))
@@ -128,27 +129,33 @@ class EventClicksDataset(luigi.Task):
         train = pandas.read_pickle(os.path.join(self.directory(), 'train_data.pkl'))
         return train, test
 
-class DatasetViews:
     @staticmethod
     def event_clicks(clicks_data, events, test_run, small=False):
         if test_run:
             train_clicks, test_clicks = clicks_data.load_train_clicks()
-            test_clicks = test_clicks
-            train_clicks = train_clicks
         else:
             train_clicks, test_clicks = clicks_data.load_eval_clicks()
 
         if small:
-            train_clicks = train_clicks.head(10000)
-            test_clicks = test_clicks.head(10000)
+            train_clicks = train_clicks.head(1000000)
+            test_clicks = test_clicks.head(1000000)
 
         logging.info('Building contexts')
+        event_geo = task_utils.geo_expander(events.geo_location)
+        events.timestamp += 1465876799998
+        events.timestamp = events.timestamp.astype('datetime[ms]')
+        events['country'] = event_geo.country
+        events['state'] = event_geo.state
         train_click_contexts = pandas.merge(train_clicks, events, on='display_id')
         test_click_contexts = pandas.merge(test_clicks, events, on='display_id')
+
         if 'clicked' not in test_click_contexts:
             test_click_contexts['clicked'] = 0
-        train_data = train_click_contexts[['ad_id', 'document_id', 'platform', 'uuid', 'clicked']].copy()
-        test_data = test_click_contexts[['display_id', 'ad_id', 'document_id', 'platform', 'uuid', 'clicked']].copy()
+        train_click_contexts['country']
+        train_data = train_click_contexts[['display_id', 'ad_id', 'document_id', 'platform',
+                                           'uuid', 'country', 'state', 'clicked']]
+        test_data = test_click_contexts[['display_id', 'ad_id', 'document_id', 'platform',
+                                         'uuid', 'country', 'state', 'clicked']]
         del train_click_contexts, test_click_contexts, train_clicks, test_clicks, events
 
         field_cats = {}
@@ -165,7 +172,7 @@ class DatasetViews:
             test_data.ix[test_data[field_name] == 1, field_name] = 0
 
         for col in train_data:
-            if col == 'clicked':
+            if col == 'clicked' or col == 'display_id' or col == 'ad_id':
                 continue
             convert_field_to_categories(col)
 

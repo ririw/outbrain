@@ -44,10 +44,13 @@ class ExternalVWLikeClassifier(luigi.Task):
                 return []
             else:
                 return luigi.s3.S3Target('s3://riri-machine-learning/outbrain-results/{}.csv'.format(type(self).__name__))
+                #return luigi.LocalTarget('/mnt/{}.csv'.format(type(self).__name__))
 
     def run(self):
         coloredlogs.install(level=logging.INFO)
         train_data, test_data = self.requires().load()
+        train_data = train_data
+        test_data = test_data
 
         predictions = self.train(train_data, test_data)
         del train_data
@@ -67,7 +70,6 @@ class ExternalVWLikeClassifier(luigi.Task):
             logging.warning('Prediction accucracy: %f', task_utils.test_with_frame(predictions))
             logging.warning('Accuracy Score: {}'.format(task_utils.test_accuracy_with_frame(predictions)))
             logging.warning('Logloss Score: {}'.format(task_utils.test_logloss_with_frame(predictions)))
-
         else:
             predictions = predictions.to_frame('prob')
             predictions['display_id'] = test_data.display_id
@@ -85,8 +87,12 @@ class VWClassifier(ExternalVWLikeClassifier):
         ad_id = rows.ad_id.values
         platform = rows.platform.values
         user_id = rows.uuid.values
+        country = rows.country.values
+        state = rows.state.values
 
-        libffm_helpers.write_vw_matrix(target_file, clicked, ad_id, document_id, platform, user_id)
+        libffm_helpers.write_vw_matrix(target_file, clicked, ad_id,
+                                       document_id, platform, user_id,
+                                       country, state)
 
     def train(self, train_data, test_data):
         logging.info('Preparing files')
@@ -105,7 +111,7 @@ class VWClassifier(ExternalVWLikeClassifier):
         logging.info('Training')
         local['vw'][
             '-k --cache_file {} -b 24 '
-            '-q ua -q ud -q da --rank 8 '
+            '-q ua -q ud -q da -q ca --rank 8 '
             '--l2 0.005 -l 0.01 '
             '--passes 100 '
             '--decay_learning_rate 0.97 --power_t 0 '

@@ -37,7 +37,8 @@ class BeatTheBenchmark(luigi.Task):
         if self.test_run:
             return []
         else:
-            return luigi.s3.S3Target('s3://riri-machine-learning/outbrain-results/beat-the-benchmark.csv')
+            #return luigi.s3.S3Target('s3://riri-machine-learning/outbrain-results/beat-the-benchmark.csv')
+            return luigi.LocalTarget('/mnt/{}.csv'.format(type(self).__name__))
 
     def run(self):
         coloredlogs.install(level=logging.INFO)
@@ -64,8 +65,8 @@ class BeatTheBenchmark(luigi.Task):
             # so strong it won't matter.
             predictor.fit(merged_data[['prob']].as_matrix(), merged_data[['clicked']])
             merged_data['pred'] = predictor.predict(merged_data[['prob']].as_matrix())
-            score = task_utils.test_accuracy_with_frame(merged_data)
-            logging.warning('Accuracy Score: {}'.format(score))
+            logging.warning('Accuracy Score: {}'.format(task_utils.test_accuracy_with_frame(merged_data)))
+            logging.warning('Logloss Score: {}'.format(task_utils.test_logloss_with_frame(merged_data)))
         else:
             results = task_utils.retrieve_from_frame(merged_data)
             with self.output().open('w') as f:
