@@ -31,7 +31,7 @@ def test_with_frame(merged_data):
     pred = [true_results[k] for k in true_results.keys()]
     results = [results[k] for k in true_results.keys()]
 
-    return ml_metrics.average_precision.mapk(pred, results, k=2)
+    return ml_metrics.average_precision.mapk(pred, results, k=12)
 
 
 def itemgetter_default(field, default):

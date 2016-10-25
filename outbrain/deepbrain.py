@@ -2,17 +2,14 @@ import logging
 
 import coloredlogs
 import keras
-import nose
-import numpy as np
 import luigi
+import nose
 import pandas
 from sklearn import linear_model
 from sklearn.datasets.base import Bunch
 
-from outbrain import datasets
 from outbrain import task_utils
-from outbrain.data_sources import FetchS3ZipFile
-from outbrain.datasets import ClicksDataset
+from outbrain.datasets import EventClicksDataset
 
 
 class KerasClassifier(luigi.Task):
@@ -20,13 +17,13 @@ class KerasClassifier(luigi.Task):
     small = luigi.parameter.BoolParameter()
 
     def requires(self):
-        return [ClicksDataset(), FetchS3ZipFile(file_name='events.csv.zip')]
+        return EventClicksDataset(test_run=self.test_run, small=self.small)
 
     def output(self):
-            if self.test_run:
-                return []
-            else:
-                return luigi.s3.S3Target('s3://riri-machine-learning/outbrain-results/{}.csv'.format(type(self).__name__))
+        if self.test_run:
+            return []
+        else:
+            return luigi.s3.S3Target('s3://riri-machine-learning/outbrain-results/{}.csv'.format(type(self).__name__))
 
     def model(self):
         pass
@@ -34,55 +31,33 @@ class KerasClassifier(luigi.Task):
     def run(self):
         coloredlogs.install(level=logging.INFO)
         logging.info('Gathering data')
-        clicks_data, events_file = self.requires()
-        logging.info('Gathering events')
-        events = pandas.read_csv(events_file.output().path, dtype={
-            'display_id': np.int64,
-            'uuid': object,
-            'document_id': np.int64,
-            'timestamp': np.int64,
-            'platform': object,
-            'geo_location': object,
-        })
+        train_data, test_data = self.requires().load()
 
-        train_test_data = datasets.EventClicks.event_clicks(clicks_data, events, self.test_run, self.small)
-        train_data = train_test_data.train_data
-        test_data = train_test_data.test_data
-
-        max_documents = train_data.document_id.max()
-        max_users = train_data.uuid.max()
-        max_ads = train_data.ad_id.max()
+        max_documents = max(train_data.document_id.max(), test_data.document_id.max())
+        max_ads = max(train_data.ad_id.max(), test_data.ad_id.max())
 
         settings = Bunch(
-            embedding_size=4
+            embedding_size=8
         )
 
         def build_embedding(largest_ix):
             k_inpt = keras.layers.Input([1])
             k_reshaped = keras.layers.Reshape([1, 1])(k_inpt)
             k_embedding = keras.layers.Embedding(
-                largest_ix + 1, settings.embedding_size, dropout=0.5
+                largest_ix + 1, settings.embedding_size
             )(k_reshaped)
             k_flattened = keras.layers.Flatten()(k_embedding)
             return k_inpt, k_flattened
 
         # Document embedding
-
         k_doc_input, k_doc_embedding = build_embedding(max_documents)
         k_ad_input, k_ad_embedding = build_embedding(max_ads)
 
-        merged_embeddings = keras.layers.merge([k_doc_embedding, k_ad_embedding],
-                                               mode='concat')
+        merged_embeddings = keras.layers.merge([k_doc_embedding, k_ad_embedding], mode='concat')
 
-        nn = keras.layers.Dense(128, activation='relu')(merged_embeddings)
-        nn = keras.layers.Dropout(0.5)(nn)
-
-        nn = keras.layers.Dense(64, activation='relu')(nn)
-        nn = keras.layers.Dropout(0.5)(nn)
-
-        nn = keras.layers.Dense(32, activation='relu')(nn)
-        nn = keras.layers.Dropout(0.5)(nn)
-
+        nn = keras.layers.Dense(32, activation='relu')(merged_embeddings)
+        nn = keras.layers.Dense(16, activation='relu')(nn)
+        nn = keras.layers.Dense(8, activation='relu')(nn)
         nn = keras.layers.Dense(1, activation='sigmoid')(nn)
 
         Xs = [train_data.document_id.values, train_data.ad_id.values]
@@ -96,7 +71,7 @@ class KerasClassifier(luigi.Task):
         nose.tools.assert_equals(model.predict(sample_xs).shape, (20, 1))
         model.compile('adam', 'binary_crossentropy')
 
-        model.fit(Xs, ys, validation_data=(test_Xs, test_ys), nb_epoch=20, batch_size=512)
+        model.fit(Xs, ys, validation_data=(test_Xs, test_ys), nb_epoch=20, batch_size=4096 * 4)
 
         if self.test_run:
             predictions = pandas.Series(model.predict(test_Xs).flatten(), index=test_data.index).to_frame('prob')

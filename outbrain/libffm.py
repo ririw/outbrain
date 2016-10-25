@@ -111,7 +111,7 @@ class VWClassifier(ExternalVWLikeClassifier):
         logging.info('Training')
         local['vw'][
             '-k --cache_file {} -b 24 '
-            '-q ua -q ud -q da -q ca --rank 8 '
+            '-q ua -q ud -q da -q ca -q ga --rank 4 '
             '--l2 0.005 -l 0.01 '
             '--passes 100 '
             '--decay_learning_rate 0.97 --power_t 0 '

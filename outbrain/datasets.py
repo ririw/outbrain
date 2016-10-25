@@ -32,8 +32,8 @@ class ClicksDataset(luigi.Task):
 
     def requires(self):
         return [
-            data_sources.FetchS3ZipFile(file_name='clicks_train.csv.zip'),
-            data_sources.FetchS3ZipFile(file_name='clicks_test.csv.zip')
+            data_sources.FetchS3ZipFile(file_name='clicks_train.csv.gz'),
+            data_sources.FetchS3ZipFile(file_name='clicks_test.csv.gz')
         ]
 
     def output(self):
@@ -50,7 +50,10 @@ class ClicksDataset(luigi.Task):
             joblib.delayed(read_csv)(eval_file.output().path),
         ])
 
-        train, test = model_selection.train_test_split(all, random_state=self.seed, test_size=0.10)
+        #train, test = model_selection.train_test_split(all, random_state=self.seed, test_size=0.10)
+        split = all.shape[0] // 10 * 6
+        train = all.iloc[:split]
+        test = all.iloc[split:]
         train = train.copy()
         test = test.copy()
 
@@ -91,7 +94,7 @@ class EventClicksDataset(luigi.Task):
 
     def requires(self):
         return [ClicksDataset(),
-                data_sources.FetchS3ZipFile(file_name='events.csv.zip')]
+                data_sources.FetchS3ZipFile(file_name='events.csv.gz')]
 
     def directory(self):
         return config.working_path('event_clicks/{}/{}'.format(
@@ -143,7 +146,7 @@ class EventClicksDataset(luigi.Task):
         logging.info('Building contexts')
         event_geo = task_utils.geo_expander(events.geo_location)
         events.timestamp += 1465876799998
-        events.timestamp = events.timestamp.astype('datetime[ms]')
+        events.timestamp = events.timestamp.astype('datetime64[ms]')
         events['country'] = event_geo.country
         events['state'] = event_geo.state
         train_click_contexts = pandas.merge(train_clicks, events, on='display_id')
