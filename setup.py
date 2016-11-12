@@ -4,8 +4,8 @@ from setuptools import setup, find_packages, Extension
 
 extensions = [
     Extension(
-        "outbrain/libffm_helpers",
-        ["outbrain/libffm_helpers.pyx"],
+        "outbrain/io_helpers",
+        ["outbrain/io_helpers.pyx"],
         include_dirs=[numpy.get_include()])
     ]
 

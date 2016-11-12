@@ -21,9 +21,9 @@ import shutil
 from plumbum import local, FG
 from sklearn import linear_model
 
-from outbrain import config, task_utils, data_sources, datasets, libffm_helpers
+from outbrain import config, task_utils, data_sources, datasets, io_helpers
 
-assert libffm_helpers._file_version == 15
+assert io_helpers._file_version == 16
 
 
 class ExternalVWLikeClassifier(luigi.Task):
@@ -90,7 +90,7 @@ class VWClassifier(ExternalVWLikeClassifier):
         country = rows.country.values
         state = rows.state.values
 
-        libffm_helpers.write_vw_matrix(target_file, clicked, ad_id,
+        io_helpers.write_vw_matrix(target_file, clicked, ad_id,
                                        document_id, platform, user_id,
                                        country, state)
 
@@ -135,7 +135,7 @@ class LibFFMClassifier(ExternalVWLikeClassifier):
         document_id = rows.document_id.values
         ad_id = rows.ad_id.values
         platform = rows.platform.values.astype(int)
-        libffm_helpers.write_ffm_matrix(target_file, clicked, ad_id, document_id, platform)
+        io_helpers.write_ffm_matrix(target_file, clicked, ad_id, document_id, platform)
 
     def train(self, train_data, test_data):
         logging.info('Preparing files')

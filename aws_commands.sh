@@ -34,6 +34,7 @@ PYTHONPATH=. luigi --local-scheduler --workers=3 --module outbrain.datasets Clic
 PYTHONPATH=. luigi --local-scheduler --module outbrain.libffm LibFFMClassifier --test-run
 PYTHONPATH=. luigi --local-scheduler --module outbrain.libffm VWClassifier --test-run
 PYTHONPATH=. luigi --local-scheduler --module outbrain.deepbrain KerasClassifier --test-run --small
+PYTHONPATH=. luigi --local-scheduler --module outbrain.lightgbm LightGBTClassifier --test-run --small
 PYTHONPATH=. luigi --local-scheduler --module outbrain.btb BeatTheBenchmark --test-run
 
 export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-0.10.0-cp34-cp34m-linux_x86_64.whl

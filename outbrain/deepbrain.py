@@ -1,4 +1,5 @@
 import logging
+import os
 
 import coloredlogs
 import keras
@@ -14,9 +15,17 @@ from outbrain.datasets import EventClicksDataset
 
 
 class KerasClassifier(luigi.Task):
-    test_run = luigi.parameter.BoolParameter(help='Run this as a test run, to evaluate the system')
-    small = luigi.parameter.BoolParameter(help='Run as a small run (~1e8 rows) to check the code')
-    vectorize = luigi.parameter.BoolParameter(help='Produce vectors, as an input for another system')
+    test_run = luigi.parameter.BoolParameter(description='Run this as a test run, to evaluate the system')
+    small = luigi.parameter.BoolParameter(description='Run as a small run (~1e8 rows) to check the code')
+    vectorize = luigi.parameter.BoolParameter(description='Produce vectors, as an input for another system')
+
+    def load(self):
+        """Load in the vectors produced with the vectorize argument"""
+        assert self.vectorize, 'Must be set up with the "vectorize" argument set true'
+        assert self.complete(), 'Must run the KerasClassifier with "vectorize" first'
+        f = open(self.output().path, 'rb')
+        data = np.load(f)
+        return data['train_vecs'], data['test_vecs']
 
     def requires(self):
         return EventClicksDataset(test_run=self.test_run, small=self.small)
@@ -88,8 +97,13 @@ class KerasClassifier(luigi.Task):
             train_vecs = vectorizer.predict(Xs, verbose=1, batch_size=batch_size)
             test_vecs = vectorizer.predict(test_Xs, verbose=1, batch_size=batch_size)
             logging.info('Writing to output')
-            with self.output().open('w') as f:
-                np.savez(f, train_vecs=train_vecs, test_vecs=test_vecs)
+            self.output().makedirs()
+            try:
+                with open(self.output().path, 'wb') as f:
+                    np.savez(f, train_vecs=train_vecs, test_vecs=test_vecs)
+            except:
+                os.remove(self.output().path)
+                raise
             return
 
         logging.info('Predicting')

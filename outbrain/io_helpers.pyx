@@ -59,4 +59,33 @@ def write_vw_matrix(str target_file,
         libc.stdio.fprintf(f, "%d |ad ad%d |doc doc%d |plat plat%d |user user%d |geoC cou%d st%d\n", c,a,d,p,u,co,st)
     libc.stdio.fclose(f)
 
-_file_version = 15
+
+def write_lightgbm_csv(str target_file,
+                       np.ndarray[np.int_t, ndim=1] clicked,
+                       np.ndarray[np.int_t, ndim=2] discrete_vals,
+                       np.ndarray[np.float32_t, ndim=2] continuous_vals):
+    f = libc.stdio.fopen(target_file.encode('ascii'), 'w')
+    cdef int num_rows, num_d_cols, num_c_cols
+    cdef int discrete_val, i, j
+    cdef float cont_val
+    num_rows = clicked.shape[0]
+    num_d_cols = discrete_vals.shape[1]
+    num_c_cols = continuous_vals.shape[1]
+
+    nose.tools.assert_equal(num_rows, discrete_vals.shape[0])
+    nose.tools.assert_equal(num_rows, continuous_vals.shape[0])
+
+    for i in range(0, clicked.shape[0]):
+        discrete_val = clicked[i]
+        libc.stdio.fprintf(f, "%d ", discrete_val)
+        for j in range(0, num_d_cols):
+            discrete_val = discrete_vals[i, j]
+            libc.stdio.fprintf(f, "%d:%d ", j, discrete_val)
+
+        for j in range(0, num_c_cols):
+            cont_val = continuous_vals[i, j]
+            libc.stdio.fprintf(f, "%d:%d ", j+num_d_cols, cont_val)
+        libc.stdio.fprintf(f, "\n")
+    libc.stdio.fclose(f)
+
+_file_version = 16
