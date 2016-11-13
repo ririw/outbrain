@@ -60,10 +60,10 @@ def write_vw_matrix(str target_file,
     libc.stdio.fclose(f)
 
 
-def write_lightgbm_csv(str target_file,
-                       np.ndarray[np.int_t, ndim=1] clicked,
-                       np.ndarray[np.int_t, ndim=2] discrete_vals,
-                       np.ndarray[np.float32_t, ndim=2] continuous_vals):
+def write_lightgbm(str target_file,
+                   np.ndarray[np.int_t, ndim=1] clicked,
+                   np.ndarray[np.int_t, ndim=2] discrete_vals,
+                   np.ndarray[np.float32_t, ndim=2] continuous_vals):
     f = libc.stdio.fopen(target_file.encode('ascii'), 'w')
     cdef int num_rows, num_d_cols, num_c_cols
     cdef int discrete_val, i, j

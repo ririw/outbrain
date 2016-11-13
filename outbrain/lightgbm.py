@@ -117,7 +117,7 @@ class LightGBTClassifier(luigi.Task):
 
 lightgbm_train_config = """
 task = train
-boosting_type = gbdt
+boosting_type = dart
 # Could also be lambdarank
 objective = binary
 # ndcg , default metric for lambdarank
@@ -132,19 +132,20 @@ max_bin = 255
 data = {training_data}
 {show_test_data}
 num_trees = 100
-learning_rate = 0.1
-num_leaves = 31
+learning_rate = 0.05
+num_leaves = 511
 tree_learner = serial
 num_threads = {num_cores}
-feature_fraction = 1.0
+feature_fraction = 0.8
 bagging_freq = 1
-bagging_fraction = 0.9
-min_data_in_leaf = 50
+bagging_fraction = 0.8
+min_data_in_leaf = 1000
 min_sum_hessian_in_leaf = 5.0
-is_enable_sparse = true
+#is_enable_sparse = true
 use_two_round_loading = false
 is_save_binary_file = false
 output_model = {model_file}
 num_machines = 1
 local_listen_port = 12400
 """
+

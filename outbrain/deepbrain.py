@@ -52,16 +52,13 @@ class KerasClassifier(luigi.Task):
         max_users = max(train_data.uuid.max(), test_data.uuid.max())
 
         settings = Bunch(
-            embedding_size=4
+            embedding_size=8
         )
 
         def build_embedding(largest_ix):
             k_inpt = keras.layers.Input([1])
             k_reshaped = keras.layers.Reshape([1, 1])(k_inpt)
-            k_embedding = keras.layers.Embedding(
-                largest_ix + 1, settings.embedding_size,
-                dropout=0.5
-            )(k_reshaped)
+            k_embedding = keras.layers.Embedding(largest_ix + 1, settings.embedding_size)(k_reshaped)
             k_flattened = keras.layers.Flatten()(k_embedding)
             return k_inpt, k_flattened
 
@@ -72,8 +69,10 @@ class KerasClassifier(luigi.Task):
 
         merged_embeddings = keras.layers.merge([k_doc_embedding, k_ad_embedding, k_user_embedding], mode='concat')
 
-        nn = keras.layers.Dropout(0.5)(keras.layers.Dense(32, activation='relu')(merged_embeddings))
-        nn = keras.layers.Dense(16, activation='relu')(nn)
+        nn = keras.layers.Dropout(0.5)(keras.layers.Dense(64, activation='relu')(merged_embeddings))
+        nn = keras.layers.Dropout(0.5)(keras.layers.Dense(32, activation='relu')(nn))
+        nn = keras.layers.Dropout(0.5)(keras.layers.Dense(16, activation='relu')(nn))
+        nn = keras.layers.Dense(8, activation='relu')(nn)
         nn = keras.layers.Dense(1, activation='sigmoid')(nn)
 
         Xs = [train_data.document_id.values, train_data.ad_id.values, train_data.uuid.values]
@@ -85,7 +84,8 @@ class KerasClassifier(luigi.Task):
         model = keras.models.Model([k_doc_input, k_ad_input, k_user_input], nn)
         # Check for a crash or size mismatch before the compile.
         nose.tools.assert_equals(model.predict(sample_xs).shape, (20, 1))
-        model.compile('adam', 'binary_crossentropy')
+        opt = keras.optimizers.Adam(lr=0.0005)
+        model.compile(opt, 'binary_crossentropy')
 
         batch_size = 4096 * 64
         model.fit(Xs, ys, validation_data=(test_Xs, test_ys), nb_epoch=5, batch_size=batch_size)

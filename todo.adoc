@@ -1,0 +1,7 @@
+= Todo =
+
+1. Add in all the different data sources, probably in the vw implementation
+2. Improve the keras FFM
+ * Split it into two parts, a keras FFM using dot product
+ * And a keras classifier, with a bigger network
+3. Chain classifiers: vw + keras + lightgbt

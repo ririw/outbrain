@@ -51,7 +51,7 @@ class ClicksDataset(luigi.Task):
         ])
 
         #train, test = model_selection.train_test_split(all, random_state=self.seed, test_size=0.10)
-        split = all.shape[0] // 10 * 6
+        split = all.shape[0] // 10 * 8
         train = all.iloc[:split]
         test = all.iloc[split:]
         train = train.copy()
